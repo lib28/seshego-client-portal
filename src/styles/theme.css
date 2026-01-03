@@ -1,0 +1,13 @@
+:root {
+  --blue-primary: #1e40af;
+  --blue-accent: #2563eb;
+
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
+
+  --radius: 14px;
+  --shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+}

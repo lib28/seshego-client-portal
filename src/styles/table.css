@@ -1,0 +1,34 @@
+.table-wrapper {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  padding: 14px;
+  background: #f1f5f9;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+td {
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.status.pending {
+  background: #fde68a;
+}

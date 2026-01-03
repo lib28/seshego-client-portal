@@ -1,0 +1,68 @@
+.layout-root {
+  min-height: 100vh;
+  background: radial-gradient(
+    ellipse at top,
+    #eef2f7 0%,
+    #e9eef5 40%,
+    #e3e8f0 100%
+  );
+}
+
+.app-header {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  height: 36px;
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.header-nav {
+  display: flex;
+  gap: 12px;
+}
+
+.nav-link {
+  padding: 8px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 14px;
+  color: #475569;
+}
+
+.nav-link.active {
+  background: #2563eb;
+  color: white;
+}
+
+.btn-logout {
+  background: #ef4444;
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.app-main {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 0 24px;
+}
