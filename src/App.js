@@ -1,36 +1,62 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import "./App.css";
+import ClientEmployees from "./pages/ClientEmployees";
 
+/* =========================
+   PUBLIC
+========================= */
+import Home from "./pages/Home";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 
-/* ========= ADMIN ========= */
+/* =========================
+   ROUTE GUARDS
+========================= */
+import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
+import EmployeeRoute from "./components/EmployeeRoute";
+
+/* =========================
+   LAYOUTS (OPTION B)
+========================= */
+import AdminLayout from "./layouts/AdminLayout";
+import ClientLayout from "./layouts/ClientLayout";
+import EmployeeLayout from "./layouts/EmployeeLayout";
+
+/* =========================
+   ADMIN PAGES
+========================= */
 import AdminDashboard from "./pages/AdminDashboard";
-import AdminDocuments from "./pages/AdminDocuments";
 import AdminAddDocument from "./pages/AdminAddDocument";
 import AdminOnboardingReview from "./pages/AdminOnboardingReview";
-import AdminLayout from "./components/AdminLayout";
-import AdminRoute from "./components/AdminRoute";
 
-/* ========= CLIENT ========= */
+/* =========================
+   CLIENT PAGES
+========================= */
 import ClientDashboard from "./pages/ClientDashboard";
 import ClientDocuments from "./pages/ClientDocuments";
 import ClientOnboarding from "./pages/ClientOnboarding";
-import ClientLayout from "./components/ClientLayout";
-import ProtectedRoute from "./components/ProtectedRoute";
+import ClientQA from "./pages/ClientQA";
 
-/* ========= EMPLOYEE ========= */
+/* =========================
+   EMPLOYEE PAGES
+========================= */
 import EmployeeDashboard from "./pages/EmployeeDashboard";
-import EmployeeLayout from "./components/EmployeeLayout";
-import EmployeeRoute from "./components/EmployeeRoute";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* PUBLIC */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        {/* =====================
+            PUBLIC
+        ===================== */}
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-        {/* CLIENT */}
+        {/* =====================
+            CLIENT
+        ===================== */}
         <Route
           path="/client"
           element={
@@ -64,24 +90,26 @@ export default function App() {
           }
         />
 
-        {/* ADMIN */}
+        <Route
+          path="/client/qa"
+          element={
+            <ProtectedRoute>
+              <ClientLayout>
+                <ClientQA />
+              </ClientLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =====================
+            ADMIN
+        ===================== */}
         <Route
           path="/admin"
           element={
             <AdminRoute>
               <AdminLayout>
                 <AdminDashboard />
-              </AdminLayout>
-            </AdminRoute>
-          }
-        />
-
-        <Route
-          path="/admin/documents"
-          element={
-            <AdminRoute>
-              <AdminLayout>
-                <AdminDocuments />
               </AdminLayout>
             </AdminRoute>
           }
@@ -109,7 +137,9 @@ export default function App() {
           }
         />
 
-        {/* EMPLOYEE */}
+        {/* =====================
+            EMPLOYEE
+        ===================== */}
         <Route
           path="/employee"
           element={
@@ -121,9 +151,21 @@ export default function App() {
           }
         />
 
-        {/* FALLBACK */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* =====================
+            FALLBACK
+        ===================== */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
 }
+<Route
+  path="/client/employees"
+  element={
+    <ProtectedRoute>
+      <ClientLayout>
+        <ClientEmployees />
+      </ClientLayout>
+    </ProtectedRoute>
+  }
+/>

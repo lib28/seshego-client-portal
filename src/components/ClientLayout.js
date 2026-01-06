@@ -1,4 +1,3 @@
-// src/components/ClientLayout.js
 import { NavLink, useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
@@ -12,59 +11,48 @@ export default function ClientLayout({ children }) {
     navigate("/login", { replace: true });
   };
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="topbar-inner">
-          {/* LEFT */}
-          <div className="topbar-left">
-            <div className="brand">
-              <div className="brand-logo-wrap">
-                <img src={logo} alt="Seshego Consulting" className="brand-logo" />
-              </div>
+  const navClass = ({ isActive }) =>
+    "site-nav-link" + (isActive ? " active" : "");
 
-              <div className="brand-text">
-                <div className="brand-name">Seshego Consulting</div>
-                <div className="brand-sub">Client Portal</div>
-              </div>
+  return (
+    <div className="site-shell">
+      <header className="site-topbar">
+        <div className="site-topbar-inner">
+          <div className="site-brand">
+            <img className="site-logo" src={logo} alt="Seshego Consulting" />
+            <div className="site-brand-text">
+              <div className="site-brand-name">Seshego Consulting</div>
+              <div className="site-brand-sub">Client Portal</div>
             </div>
           </div>
 
-          {/* CENTER */}
-          <nav className="topbar-center">
-            <NavLink
-              to="/client"
-              end
-              className={({ isActive }) => "nav-pill" + (isActive ? " active" : "")}
-            >
+          <nav className="site-nav">
+            <NavLink to="/client" end className={navClass}>
               Dashboard
             </NavLink>
-
-            <NavLink
-              to="/client/documents"
-              className={({ isActive }) => "nav-pill" + (isActive ? " active" : "")}
-            >
-              My Documents
+            <NavLink to="/client/documents" className={navClass}>
+              Documents
             </NavLink>
-
-            <NavLink
-              to="/client/onboarding"
-              className={({ isActive }) => "nav-pill" + (isActive ? " active" : "")}
-            >
+            <NavLink to="/client/onboarding" className={navClass}>
               Onboarding
+            </NavLink>
+            <NavLink to="/client/qa" className={navClass}>
+              Q&amp;A
             </NavLink>
           </nav>
 
-          {/* RIGHT */}
-          <div className="topbar-right">
-            <button className="btn-danger btn-sm" onClick={handleLogout}>
+          <div className="site-actions">
+            <button className="site-btn site-btn-outline" onClick={handleLogout}>
               Logout
             </button>
           </div>
         </div>
       </header>
 
-      <main className="page-wrap">{children}</main>
+      <main className="site-content">{children}</main>
     </div>
   );
 }
+<NavLink to="/client/employees" className={navClass}>
+  Employees
+</NavLink>

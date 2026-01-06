@@ -1,171 +1,191 @@
-import { useEffect, useMemo, useState } from "react";
-import { db } from "../firebase";
-import { collection, getDocs } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
+// src/pages/AdminDashboard.js
+import { Link } from "react-router-dom";
+import { useMemo } from "react";
 
 export default function AdminDashboard() {
-  const navigate = useNavigate();
-  const [documents, setDocuments] = useState([]);
-  const [search, setSearch] = useState("");
+  // Demo stats (replace later with Firestore counts)
+  const stats = useMemo(
+    () => [
+      { label: "Pending approvals", value: 4, hint: "New client onboarding waiting" },
+      { label: "Active clients", value: 18, hint: "Approved client accounts" },
+      { label: "Documents", value: 42, hint: "Policies, statements, templates" },
+      { label: "Open requests", value: 3, hint: "Client questions / actions" },
+    ],
+    []
+  );
 
-  useEffect(() => {
-    const loadDocuments = async () => {
-      const snap = await getDocs(collection(db, "documents"));
-      setDocuments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    };
-    loadDocuments();
-  }, []);
+  const quickActions = [
+    {
+      title: "Review onboarding",
+      desc: "Approve / reject new client registrations.",
+      to: "/admin/onboarding",
+      icon: "✅",
+      tone: "primary",
+    },
+    {
+      title: "Upload documents",
+      desc: "Add policies, compliance docs, statements.",
+      to: "/admin/documents/new",
+      icon: "📄",
+      tone: "secondary",
+    },
+    {
+      title: "Manage users",
+      desc: "Create roles (admin / client / employee).",
+      to: "/admin/users",
+      icon: "👤",
+      tone: "secondary",
+      disabled: true, // enable later when you create the page
+    },
+    {
+      title: "System status",
+      desc: "Audit log, platform health, permissions.",
+      to: "/admin/audit",
+      icon: "🛡️",
+      tone: "secondary",
+      disabled: true, // enable later
+    },
+  ];
 
-  const filteredDocs = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return documents;
-
-    return documents.filter((d) => {
-      const title = (d.title || "").toLowerCase();
-      const email = (d.clientEmail || "").toLowerCase();
-      return title.includes(q) || email.includes(q);
-    });
-  }, [documents, search]);
-
-  const total = documents.length;
-  const showing = filteredDocs.length;
+  const modules = [
+    {
+      title: "Risk management",
+      items: [
+        "Risk register oversight",
+        "Incident reporting & follow-up",
+        "Service provider performance tracking",
+      ],
+    },
+    {
+      title: "Compliance & governance",
+      items: [
+        "FAIS / regulatory workflows",
+        "Rule drafting & approvals",
+        "Policy distribution control",
+      ],
+    },
+    {
+      title: "Employee & client protection",
+      items: [
+        "Secure document access",
+        "Role-based visibility",
+        "Identity / access reviews",
+      ],
+    },
+    {
+      title: "Financial, regulatory & advisory services",
+      items: [
+        "Client submissions & assessments",
+        "Reporting packs / statements",
+        "Consulting engagement tracking",
+      ],
+    },
+    {
+      title: "Trust, security & accountability",
+      items: [
+        "Audit trail (who did what)",
+        "Data retention controls",
+        "Approval and sign-off records",
+      ],
+    },
+  ];
 
   return (
-    <div className="page portal-page">
+    <div className="page">
       {/* Header */}
-      <div className="page-header page-header-split">
+      <div className="page-head">
         <div>
-          <h1 className="page-title">My Documents</h1>
-          <p className="muted">
-            Manage client documents and workflow.
-            <span className="meta"> • {showing} of {total} shown</span>
+          <h1 className="page-title">Admin Control Panel</h1>
+          <p className="page-subtitle">
+            Central operations dashboard — manage onboarding, documents, roles and compliance workflows.
           </p>
         </div>
 
-        <div className="page-header-actions">
-          <button
-            className="btn-primary"
-            onClick={() => navigate("/admin/documents/new")}
-          >
-            + Create Document
-          </button>
+        <div className="page-actions">
+          <Link className="btn btn-primary" to="/admin/onboarding">
+            Review onboarding
+          </Link>
+          <Link className="btn btn-ghost" to="/admin/documents/new">
+            Upload document
+          </Link>
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="card glass toolbar-card">
-        <div className="toolbar">
-          <div className="toolbar-left">
-            <div className="search-wrap">
-              <span className="search-icon">⌕</span>
-              <input
-                className="search-input"
-                placeholder="Search by title or client email…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+      {/* Stats */}
+      <section className="grid grid-4">
+        {stats.map((s) => (
+          <div key={s.label} className="card stat">
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-value">{s.value}</div>
+            <div className="stat-hint">{s.hint}</div>
+          </div>
+        ))}
+      </section>
+
+      {/* Quick actions tiles */}
+      <section className="section">
+        <div className="section-head">
+          <h2 className="section-title">Quick actions</h2>
+          <div className="section-note">Most used admin actions for daily operations</div>
+        </div>
+
+        <div className="grid grid-4">
+          {quickActions.map((a) => (
+            <ActionTile key={a.title} {...a} />
+          ))}
+        </div>
+      </section>
+
+      {/* Operational modules */}
+      <section className="section">
+        <div className="section-head">
+          <h2 className="section-title">Operational modules</h2>
+          <div className="section-note">How the platform is structured (demo-ready)</div>
+        </div>
+
+        <div className="grid grid-3">
+          {modules.map((m) => (
+            <div key={m.title} className="card">
+              <div className="card-title">{m.title}</div>
+              <ul className="list">
+                {m.items.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
             </div>
-          </div>
-
-          <div className="toolbar-right">
-            <span className="pill pill-neutral">
-              <span className="pill-label">Total</span>
-              <span className="pill-value">{total}</span>
-            </span>
-            <span className="pill pill-neutral">
-              <span className="pill-label">Results</span>
-              <span className="pill-value">{showing}</span>
-            </span>
-          </div>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* Table */}
-      <div className="card glass table-card">
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th className="col-title">Title</th>
-                <th className="col-client">Client</th>
-                <th className="col-status">Status</th>
-                <th className="col-file">File</th>
-                <th className="col-actions right">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredDocs.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="empty">
-                    <div className="empty-box">
-                      <div className="empty-title">No documents found</div>
-                      <div className="empty-sub">
-                        Try a different search, or create a new document.
-                      </div>
-                      <button
-                        className="btn-primary"
-                        onClick={() => navigate("/admin/documents/new")}
-                      >
-                        + Create Document
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredDocs.map((doc) => {
-                  const statusRaw = doc.status || "pending";
-                  const status = String(statusRaw).toLowerCase();
-
-                  return (
-                    <tr key={doc.id} className="table-row-hover">
-                      <td className="title">
-                        <div className="cell-title">
-                          {doc.title || "Untitled"}
-                        </div>
-                        <div className="cell-sub muted">
-                          Document ID: <span className="mono">{doc.id}</span>
-                        </div>
-                      </td>
-
-                      <td className="mono">{doc.clientEmail || "—"}</td>
-
-                      <td>
-                        <span className={`status-pill status-${status}`}>
-                          {String(statusRaw).toUpperCase()}
-                        </span>
-                      </td>
-
-                      <td>
-                        {doc.fileUrl ? (
-                          <a
-                            className="link link-strong"
-                            href={doc.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View file →
-                          </a>
-                        ) : (
-                          <span className="muted">No file</span>
-                        )}
-                      </td>
-
-                      <td className="right">
-                        <div className="actions">
-                          <button className="btn-secondary btn-sm">
-                            Mark approved
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Admin notes / next steps */}
+      
     </div>
+  );
+}
+
+function ActionTile({ title, desc, to, icon, tone = "secondary", disabled }) {
+  const className =
+    "tile " +
+    (tone === "primary" ? "tile-primary" : "tile-secondary") +
+    (disabled ? " tile-disabled" : "");
+
+  if (disabled) {
+    return (
+      <div className={className} role="button" aria-disabled="true">
+        <div className="tile-icon">{icon}</div>
+        <div className="tile-title">{title}</div>
+        <div className="tile-desc">{desc}</div>
+        <div className="tile-foot">Coming soon</div>
+      </div>
+    );
+  }
+
+  return (
+    <Link className={className} to={to}>
+      <div className="tile-icon">{icon}</div>
+      <div className="tile-title">{title}</div>
+      <div className="tile-desc">{desc}</div>
+      <div className="tile-foot">Open</div>
+    </Link>
   );
 }

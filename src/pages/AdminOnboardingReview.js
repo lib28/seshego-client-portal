@@ -1,296 +1,455 @@
 // src/pages/AdminOnboardingReview.js
 import { useEffect, useMemo, useState } from "react";
-import { auth, db } from "../firebase";
-import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
+  onSnapshot,
   orderBy,
   query,
+  doc,
   updateDoc,
+  setDoc,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
+import { db } from "../firebase";
 
 export default function AdminOnboardingReview() {
-  const [loading, setLoading] = useState(true);
-
-  // all submissions from Firestore
   const [items, setItems] = useState([]);
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState("");
 
-  // UI state
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all"); // all | pending | submitted | approved | rejected
+  // Optional: rejection message per row
+  const [rejectReason, setRejectReason] = useState({});
 
-  // ---------------------------
-  // Helpers
-  // ---------------------------
-  const normalize = (v) => (v ?? "").toString().trim().toLowerCase();
+  useEffect(() => {
+    setError("");
 
-  const canAccess = async (firebaseUser) => {
-    if (!firebaseUser) return false;
-    const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-    return snap.exists() && snap.data()?.role === "admin";
-  };
-
-  const fetchSubmissions = async () => {
-    // newest first (if createdAt exists)
     const q = query(
       collection(db, "onboardingSubmissions"),
-      orderBy("createdAt", "desc"),
-      limit(200)
+      orderBy("createdAt", "desc")
     );
 
-    const snap = await getDocs(q);
-    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    setItems(rows);
-  };
-
-  // ---------------------------
-  // Load
-  // ---------------------------
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u) {
-        setItems([]);
-        setLoading(false);
-        return;
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setItems(rows);
+      },
+      (err) => {
+        console.error(err);
+        setError("Failed to load onboarding submissions.");
       }
-
-      try {
-        const ok = await canAccess(u);
-        if (!ok) {
-          setItems([]);
-          setLoading(false);
-          return;
-        }
-
-        setLoading(true);
-        await fetchSubmissions();
-      } catch (e) {
-        console.error("AdminOnboardingReview load error:", e);
-      } finally {
-        setLoading(false);
-      }
-    });
+    );
 
     return () => unsub();
   }, []);
 
-  // ---------------------------
-  // Derived
-  // ---------------------------
-  const counts = useMemo(() => {
-    const c = {
-      total: items.length,
-      pending: 0,
-      submitted: 0,
-      approved: 0,
-      rejected: 0,
-    };
+  const pending = useMemo(
+    () => items.filter((x) => String(x.status || "").toLowerCase() === "pending"),
+    [items]
+  );
+  const approved = useMemo(
+    () => items.filter((x) => String(x.status || "").toLowerCase() === "approved"),
+    [items]
+  );
+  const rejected = useMemo(
+    () => items.filter((x) => String(x.status || "").toLowerCase() === "rejected"),
+    [items]
+  );
 
-    for (const x of items) {
-      const s = normalize(x.status) || "pending";
-      if (s === "pending") c.pending += 1;
-      else if (s === "submitted") c.submitted += 1;
-      else if (s === "approved") c.approved += 1;
-      else if (s === "rejected") c.rejected += 1;
-    }
-    return c;
-  }, [items]);
+  // ----------------------------
+  // APPROVE (sends email)
+  // ----------------------------
+  const approve = async (row) => {
+    setError("");
+    setBusyId(row.id);
 
-  const filtered = useMemo(() => {
-    const s = normalize(search);
-    const status = normalize(statusFilter);
-
-    return items.filter((x) => {
-      const xStatus = normalize(x.status) || "pending";
-
-      // status filter
-      if (status !== "all" && xStatus !== status) return false;
-
-      // text search across likely fields
-      if (!s) return true;
-
-      const hay = [
-        x.companyName,
-        x.contactPerson,
-        x.address,
-        x.vatOrReg,
-        x.email,
-        x.userEmail,
-        x.contactEmail,
-        x.phone,
-      ]
-        .map(normalize)
-        .join(" | ");
-
-      return hay.includes(s);
-    });
-  }, [items, search, statusFilter]);
-
-  // ---------------------------
-  // Actions
-  // ---------------------------
-  const setStatus = async (row, nextStatus) => {
     try {
-      // Optimistic UI
-      setItems((prev) =>
-        prev.map((x) => (x.id === row.id ? { ...x, status: nextStatus } : x))
+      if (!row?.uid || !row?.email) {
+        throw new Error("Submission missing uid/email. Cannot approve.");
+      }
+
+      // 1) Mark submission approved
+      await updateDoc(doc(db, "onboardingSubmissions", row.id), {
+        status: "approved",
+        approvedAt: serverTimestamp(),
+      });
+
+      // 2) Create/merge user profile for routing
+      await setDoc(
+        doc(db, "users", row.uid),
+        {
+          email: row.email,
+          role: "client",
+          companyName: row.companyName || "",
+          contactPerson: row.contactPerson || "",
+          address: row.address || "",
+          vatOrReg: row.vatOrReg || "",
+          createdAt: serverTimestamp(),
+          isActive: true,
+        },
+        { merge: true }
       );
 
-      await updateDoc(doc(db, "onboardingSubmissions", row.id), {
-        status: nextStatus,
-        reviewedAt: new Date(),
+      // 3) Trigger email via Firebase Extension (mail collection)
+      await addDoc(collection(db, "mail"), {
+        to: row.email,
+        message: {
+          subject: "Seshego Portal Access Approved",
+          html: `
+            <div style="font-family: Arial, sans-serif; line-height:1.6;">
+              <h2 style="margin:0 0 10px;">Your portal access is approved ✅</h2>
+              <p style="margin:0 0 12px;">
+                Hello ${escapeHtml(row.contactPerson || "there")},
+              </p>
+              <p style="margin:0 0 12px;">
+                Your registration for <b>${escapeHtml(row.companyName || "your company")}</b> has been approved.
+              </p>
+              <p style="margin:0 0 12px;">
+                You may now log in using the email and password you registered with.
+              </p>
+              <p style="margin:0 0 12px;">
+                <b>Login link:</b> ${escapeHtml(window.location.origin)}/login
+              </p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0;" />
+              <p style="margin:0; color:#64748b; font-size:12px;">
+                Seshego Consulting — Secure Client Portal
+              </p>
+            </div>
+          `,
+        },
       });
     } catch (e) {
-      console.error("Update status error:", e);
-      // revert by reloading
-      try {
-        await fetchSubmissions();
-      } catch (e2) {
-        console.error("Reload after error failed:", e2);
-      }
+      console.error(e);
+      setError(e.message || "Approve failed.");
+    } finally {
+      setBusyId(null);
     }
   };
 
-  const handleApprove = (row) => setStatus(row, "approved");
-  const handleReject = (row) => setStatus(row, "rejected");
+  // ----------------------------
+  // REJECT (optional, but useful)
+  // ----------------------------
+  const reject = async (row) => {
+    setError("");
+    setBusyId(row.id);
 
-  // ---------------------------
-  // UI
-  // ---------------------------
-  return (
-    <div className="page portal-page">
-      {/* HEADER */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Onboarding Review</h1>
-          <p className="muted">
-            Review submissions and approve/reject onboarding.
-          </p>
-        </div>
+    try {
+      if (!row?.email) throw new Error("Submission missing email. Cannot reject.");
 
-        {/* counts aligned like other pages */}
-        <div className="header-actions column">
-          <div className="stat-mini">Total: {counts.total}</div>
-          <div className="stat-mini">Pending: {counts.pending}</div>
-          <div className="stat-mini">Submitted: {counts.submitted}</div>
-          <div className="stat-mini">Approved: {counts.approved}</div>
-          <div className="stat-mini">Rejected: {counts.rejected}</div>
-        </div>
-      </div>
+      const reason = (rejectReason[row.id] || "").trim();
 
-      {/* ✅ content wrap to align with dashboard */}
-      <div className="content-wrap">
-        <div className="card glass table-card">
-          <div className="toolbar">
-            <input
-              className="input search"
-              placeholder="Search company / contact / email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      await updateDoc(doc(db, "onboardingSubmissions", row.id), {
+        status: "rejected",
+        rejectedAt: serverTimestamp(),
+        rejectReason: reason || "",
+      });
 
-            <div className="filter-row">
-              {["all", "pending", "submitted", "approved", "rejected"].map(
-                (s) => (
-                  <button
-                    key={s}
-                    className={`filter-pill ${
-                      statusFilter === s ? "active" : ""
-                    }`}
-                    onClick={() => setStatusFilter(s)}
-                    type="button"
-                  >
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </button>
-                )
-              )}
+      await addDoc(collection(db, "mail"), {
+        to: row.email,
+        message: {
+          subject: "Seshego Portal Registration Update",
+          html: `
+            <div style="font-family: Arial, sans-serif; line-height:1.6;">
+              <h2 style="margin:0 0 10px;">Registration update</h2>
+              <p style="margin:0 0 12px;">
+                Hello ${escapeHtml(row.contactPerson || "there")},
+              </p>
+              <p style="margin:0 0 12px;">
+                Your registration could not be approved at this time.
+              </p>
+              ${
+                reason
+                  ? `<p style="margin:0 0 12px;"><b>Reason:</b> ${escapeHtml(reason)}</p>`
+                  : ""
+              }
+              <p style="margin:0 0 12px;">
+                Please contact support if you need assistance.
+              </p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0;" />
+              <p style="margin:0; color:#64748b; font-size:12px;">
+                Seshego Consulting — Secure Client Portal
+              </p>
             </div>
+          `,
+        },
+      });
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Reject failed.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div style={{ padding: 22 }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
+          Onboarding Review
+        </h1>
+        <p style={{ marginTop: 8, marginBottom: 18, color: "#334155" }}>
+          Approve pending registrations. Approval creates the client profile and sends an email automatically.
+        </p>
+
+        {error && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: "10px 12px",
+              borderRadius: 12,
+              background: "rgba(239, 68, 68, 0.10)",
+              border: "1px solid rgba(239, 68, 68, 0.25)",
+              color: "#b91c1c",
+              fontWeight: 800,
+              fontSize: 13,
+            }}
+          >
+            {error}
           </div>
+        )}
 
-          {loading ? (
-            <div className="table-empty">Loading submissions…</div>
-          ) : filtered.length === 0 ? (
-            <div className="table-empty">No submissions found.</div>
+        <Section title={`Pending (${pending.length})`}>
+          {pending.length === 0 ? (
+            <Empty />
           ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Company</th>
-                  <th>Contact</th>
-                  <th>Status</th>
-                  <th className="right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((x) => {
-                  const status = normalize(x.status) || "pending";
+            pending.map((row) => (
+              <Card key={row.id}>
+                <RowTop
+                  title={row.companyName || "Company"}
+                  subtitle={`${row.contactPerson || "Contact"} • ${row.email || ""}`}
+                  badge="PENDING"
+                />
 
-                  return (
-                    <tr key={x.id}>
-                      <td>
-                        <div className="doc-title">
-                          {x.companyName || "—"}
-                        </div>
-                        <div className="doc-sub muted">
-                          {x.userEmail || x.email || "—"}
-                        </div>
-                      </td>
+                <div style={grid()}>
+                  <Info label="Address" value={row.address || "—"} />
+                  <Info label="VAT/Reg" value={row.vatOrReg || "—"} />
+                  <Info label="UID" value={row.uid || "—"} mono />
+                </div>
 
-                      <td>
-                        <div style={{ fontWeight: 700 }}>
-                          {x.contactPerson || "—"}
-                        </div>
-                        <div className="muted">{x.phone || ""}</div>
-                      </td>
+                <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => approve(row)}
+                    disabled={busyId === row.id}
+                    style={btnPrimary(busyId === row.id)}
+                  >
+                    {busyId === row.id ? "Approving..." : "Approve + Email"}
+                  </button>
 
-                      <td>
-                        <span className={`status-pill ${status}`}>
-                          {status.toUpperCase()}
-                        </span>
-                      </td>
+                  <div style={{ flex: 1, minWidth: 240 }}>
+                    <input
+                      value={rejectReason[row.id] || ""}
+                      onChange={(e) =>
+                        setRejectReason((p) => ({ ...p, [row.id]: e.target.value }))
+                      }
+                      placeholder="Reject reason (optional)"
+                      style={input()}
+                    />
+                  </div>
 
-                      <td className="right">
-                        <div className="table-actions">
-                          <button
-                            className="btn-action success"
-                            onClick={() => handleApprove(x)}
-                            type="button"
-                            disabled={status === "approved"}
-                            title={
-                              status === "approved"
-                                ? "Already approved"
-                                : "Approve submission"
-                            }
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="btn-action muted"
-                            onClick={() => handleReject(x)}
-                            type="button"
-                            disabled={status === "rejected"}
-                            title={
-                              status === "rejected"
-                                ? "Already rejected"
-                                : "Reject submission"
-                            }
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  <button
+                    onClick={() => reject(row)}
+                    disabled={busyId === row.id}
+                    style={btnGhostDanger(busyId === row.id)}
+                  >
+                    Reject + Email
+                  </button>
+                </div>
+              </Card>
+            ))
           )}
-        </div>
+        </Section>
+
+        <div style={{ height: 18 }} />
+
+        <Section title={`Approved (${approved.length})`}>
+          {approved.length === 0 ? (
+            <Empty />
+          ) : (
+            approved.slice(0, 10).map((row) => (
+              <Card key={row.id}>
+                <RowTop
+                  title={row.companyName || "Company"}
+                  subtitle={`${row.contactPerson || "Contact"} • ${row.email || ""}`}
+                  badge="APPROVED"
+                  badgeColor="#16a34a"
+                />
+              </Card>
+            ))
+          )}
+        </Section>
+
+        <div style={{ height: 18 }} />
+
+        <Section title={`Rejected (${rejected.length})`}>
+          {rejected.length === 0 ? (
+            <Empty />
+          ) : (
+            rejected.slice(0, 10).map((row) => (
+              <Card key={row.id}>
+                <RowTop
+                  title={row.companyName || "Company"}
+                  subtitle={`${row.contactPerson || "Contact"} • ${row.email || ""}`}
+                  badge="REJECTED"
+                  badgeColor="#ef4444"
+                />
+                {row.rejectReason ? (
+                  <div style={{ marginTop: 10, color: "#334155" }}>
+                    <b>Reason:</b> {row.rejectReason}
+                  </div>
+                ) : null}
+              </Card>
+            ))
+          )}
+        </Section>
       </div>
     </div>
   );
+}
+
+/* -----------------------
+   Small UI helpers
+----------------------- */
+
+function Section({ title, children }) {
+  return (
+    <div>
+      <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 10 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Card({ children }) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid rgba(15,23,42,0.10)",
+        borderRadius: 16,
+        padding: 16,
+        boxShadow: "0 10px 24px rgba(2,6,23,0.06)",
+        marginBottom: 12,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function RowTop({ title, subtitle, badge, badgeColor = "#f97316" }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 900, fontSize: 16, color: "#0f172a" }}>{title}</div>
+        <div style={{ marginTop: 4, color: "#334155" }}>{subtitle}</div>
+      </div>
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 900,
+          padding: "6px 10px",
+          borderRadius: 999,
+          background: "rgba(2,6,23,0.04)",
+          border: "1px solid rgba(15,23,42,0.10)",
+          color: badgeColor,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {badge}
+      </span>
+    </div>
+  );
+}
+
+function Info({ label, value, mono }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 900, color: "#475569" }}>{label}</div>
+      <div
+        style={{
+          marginTop: 6,
+          color: "#0f172a",
+          fontWeight: 700,
+          fontFamily: mono ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "inherit",
+          fontSize: mono ? 12 : 14,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function Empty() {
+  return (
+    <div
+      style={{
+        padding: 14,
+        borderRadius: 14,
+        border: "1px dashed rgba(15,23,42,0.18)",
+        color: "#64748b",
+        background: "rgba(2,6,23,0.02)",
+      }}
+    >
+      Nothing here yet.
+    </div>
+  );
+}
+
+function grid() {
+  return {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 12,
+    marginTop: 12,
+  };
+}
+
+function input() {
+  return {
+    width: "100%",
+    padding: "11px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(15,23,42,0.15)",
+    outline: "none",
+  };
+}
+
+function btnPrimary(disabled) {
+  return {
+    border: "none",
+    borderRadius: 12,
+    padding: "11px 14px",
+    fontWeight: 900,
+    background: "#2563eb",
+    color: "#fff",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.8 : 1,
+  };
+}
+
+function btnGhostDanger(disabled) {
+  return {
+    border: "1px solid rgba(239, 68, 68, 0.25)",
+    borderRadius: 12,
+    padding: "11px 14px",
+    fontWeight: 900,
+    background: "rgba(239, 68, 68, 0.06)",
+    color: "#b91c1c",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.8 : 1,
+  };
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }

@@ -1,6 +1,6 @@
 // Firebase core
 import { initializeApp } from "firebase/app";
-
+import { getFunctions } from "firebase/functions";
 // Firebase services
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -18,7 +18,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
+export const functions = getFunctions(app);
 // Export services
 export const auth = getAuth(app);
 export const db = getFirestore(app);

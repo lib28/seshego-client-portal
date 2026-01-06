@@ -1,203 +1,80 @@
-import { useEffect, useMemo, useState } from "react";
-import { auth, db } from "../firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+// src/pages/ClientDocuments.js
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function ClientDocuments() {
-  const user = auth.currentUser;
+  const navigate = useNavigate();
 
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-
-  useEffect(() => {
-    const fetchDocuments = async () => {
-      if (!user) return;
-
-      setLoading(true);
-      try {
-        // Prefer clientId
-        let q = query(collection(db, "documents"), where("clientId", "==", user.uid));
-        let snapshot = await getDocs(q);
-
-        // Fallback: clientEmail
-        if (snapshot.empty) {
-          q = query(collection(db, "documents"), where("clientEmail", "==", user.email));
-          snapshot = await getDocs(q);
-        }
-
-        const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setDocuments(docs);
-      } catch (err) {
-        console.error("Error fetching documents:", err);
-        setDocuments([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDocuments();
-  }, [user]);
-
-  const filtered = useMemo(() => {
-    const norm = (s) => String(s || "").toLowerCase();
-
-    return documents
-      .filter((d) => {
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        return (
-          norm(d.title).includes(q) ||
-          norm(d.fileName).includes(q) ||
-          norm(d.status).includes(q)
-        );
-      })
-      .filter((d) => {
-        if (statusFilter === "all") return true;
-        return norm(d.status) === statusFilter;
-      });
-  }, [documents, search, statusFilter]);
-
-  const counts = useMemo(() => {
-    const norm = (s) => String(s || "pending").toLowerCase();
-    const total = documents.length;
-    const pending = documents.filter((d) => norm(d.status) === "pending").length;
-    const approved = documents.filter((d) => norm(d.status) === "approved").length;
-    const signed = documents.filter((d) => norm(d.status) === "signed").length;
-    return { total, pending, approved, signed };
-  }, [documents]);
+  // Sample docs (replace with Firestore later)
+  const recentDocs = useMemo(
+    () => [
+      { id: "ips", name: "Investment Policy Statement (IPS)", date: "2026-01-05" },
+      { id: "gov", name: "Governance & Compliance Overview", date: "2026-01-03" },
+      { id: "risk", name: "Risk Review Summary", date: "2025-12-21" },
+      { id: "benefits", name: "Benefits Structure Summary", date: "2025-12-18" },
+      { id: "rules", name: "Fund Rules Draft (Extract)", date: "2025-12-12" },
+    ],
+    []
+  );
 
   return (
-    <div className="page portal-page">
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">My Documents</h1>
-          <p className="muted">
-            View and download your assigned documents.
-            {!loading && (
-              <>
-                {" "}• <span className="mono">{filtered.length}</span> of{" "}
-                <span className="mono">{counts.total}</span> shown
-              </>
-            )}
-          </p>
-        </div>
+    <div className="dash-wrap">
+      <section className="dash-hero">
+        <div className="dash-hero-inner">
+          <div>
+            <div className="dash-hello">My Documents</div>
+            <div className="dash-sub">View and download your approved documents</div>
+          </div>
 
-        {/* Small summary pills (like a SaaS toolbar) */}
-        <div className="pill-row">
-          <span className="pill">Total: <b>{loading ? "…" : counts.total}</b></span>
-          <span className="pill">Pending: <b>{loading ? "…" : counts.pending}</b></span>
-          <span className="pill">Approved: <b>{loading ? "…" : counts.approved}</b></span>
-          <span className="pill">Signed: <b>{loading ? "…" : counts.signed}</b></span>
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="card glass toolbar">
-        <div className="toolbar-left">
-          <input
-            className="search-input"
-            placeholder="Search by title, file name or status…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-
-          <select
-            className="select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="signed">Signed</option>
-          </select>
-        </div>
-
-        <div className="toolbar-right">
           <button
-            className="btn-secondary"
+            className="dash-help-btn"
             type="button"
-            onClick={() => {
-              setSearch("");
-              setStatusFilter("all");
-            }}
-            disabled={loading}
+            onClick={() => navigate("/client")}
+            title="Back to dashboard"
           >
-            Clear
+            Back
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Table */}
-      <div className="card glass table-card">
-        {loading ? (
-          <div className="table-empty">Loading documents…</div>
-        ) : filtered.length === 0 ? (
-          <div className="table-empty">
-            <div className="empty-title">No documents found</div>
-            <div className="muted">
-              Try a different search term or change the status filter.
-            </div>
+      <section className="dash-section">
+        <h2 className="dash-h2">Available documents</h2>
+
+        <div className="card">
+          <div className="list">
+            {recentDocs.map((d, i) => (
+              <div className="list-row" key={d.id || `${d.name}-${i}`}>
+                <div>
+                  <div className="list-title">{d.name}</div>
+                  <div className="list-sub">Updated: {d.date}</div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <button
+                    className="btn-ghost"
+                    type="button"
+                    onClick={() => alert(`Demo: Open "${d.name}"`)}
+                  >
+                    Open
+                  </button>
+
+                  <button
+                    className="btn-primary"
+                    type="button"
+                    onClick={() => alert(`Demo: Download "${d.name}"`)}
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Status</th>
-                  <th>File</th>
-                  <th className="right">Action</th>
-                </tr>
-              </thead>
 
-              <tbody>
-                {filtered.map((doc) => (
-                  <tr key={doc.id}>
-                    <td>
-                      <div className="doc-title">{doc.title || "Untitled"}</div>
-                      <div className="doc-sub muted">
-                        {doc.fileName || "No file name"}
-                      </div>
-                    </td>
-
-                    <td>
-                      <span className={`status-pill ${String(doc.status || "pending").toLowerCase()}`}>
-                        {String(doc.status || "pending").toUpperCase()}
-                      </span>
-                    </td>
-
-                    <td>
-                      {doc.fileUrl ? (
-                        <a className="link" href={doc.fileUrl} target="_blank" rel="noreferrer">
-                          View
-                        </a>
-                      ) : (
-                        <span className="muted">No file</span>
-                      )}
-                    </td>
-
-                    <td className="right">
-                      {doc.fileUrl ? (
-                        <a className="btn-secondary btn-sm" href={doc.fileUrl} target="_blank" rel="noreferrer">
-                          Download
-                        </a>
-                      ) : (
-                        <button className="btn-secondary btn-sm" disabled>
-                          Download
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          <p className="muted" style={{ marginTop: 12, fontSize: 12 }}>
+            *Demo mode: documents are placeholders for presentation. Firestore/Storage will be connected next.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,13 +1,23 @@
 :root {
-  --blue-primary: #1e40af;
-  --blue-accent: #2563eb;
+  /* Brand */
+  --brand-primary: #1f6feb;     /* Blue CTA */
+  --brand-dark: #0f3d3e;        /* Teal header */
+  --brand-dark-2: #124b4d;
 
-  --bg-app: #f8fafc;
-  --bg-card: #ffffff;
+  /* Backgrounds */
+  --bg-page: #0b2e30;
+  --bg-glass: rgba(255,255,255,0.10);
+  --bg-glass-strong: rgba(255,255,255,0.14);
 
-  --text-primary: #0f172a;
-  --text-muted: #64748b;
+  /* Text */
+  --text-main: #0f172a;
+  --text-invert: #ffffff;
+  --text-muted: rgba(255,255,255,0.75);
 
-  --radius: 14px;
-  --shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+  /* Borders */
+  --border-soft: rgba(255,255,255,0.18);
+
+  /* Radius */
+  --radius-lg: 20px;
+  --radius-md: 14px;
 }

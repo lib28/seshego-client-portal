@@ -1,224 +1,219 @@
-import { useEffect, useMemo, useState } from "react";
-import { auth, db } from "../firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+// src/pages/ClientDashboard.js
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { auth } from "../firebase";
 
 export default function ClientDashboard() {
   const navigate = useNavigate();
-  const user = auth.currentUser;
+  const userEmail = auth?.currentUser?.email || "client@company.com";
 
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Sample data (replace with Firestore later)
+  const portfolioItems = useMemo(
+    () => [
+      {
+        title: "Retirement Saving",
+        subtitle:
+          "Pension & Life Assurance Scheme (Southern & Eastern Cape)",
+        valueLabel: "Fund balance",
+        value: "R13 141",
+      },
+      {
+        title: "Risk Consulting",
+        subtitle: "Cover & policy structure review (summary)",
+        valueLabel: "Status",
+        value: "Active",
+      },
+    ],
+    []
+  );
 
-  useEffect(() => {
-    const fetchDocuments = async () => {
-      if (!user) return;
-
-      try {
-        // Prefer clientId (uid)
-        let q = query(
-          collection(db, "documents"),
-          where("clientId", "==", user.uid)
-        );
-        let snapshot = await getDocs(q);
-
-        // Fallback if you store clientEmail
-        if (snapshot.empty) {
-          q = query(
-            collection(db, "documents"),
-            where("clientEmail", "==", user.email)
-          );
-          snapshot = await getDocs(q);
-        }
-
-        const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setDocuments(docs);
-      } catch (error) {
-        console.error("Error fetching documents:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDocuments();
-  }, [user]);
-
-  const norm = (s) => String(s || "pending").toLowerCase();
-
-  const counts = useMemo(() => {
-    const total = documents.length;
-    const pending = documents.filter((d) => norm(d.status) === "pending").length;
-    const approved = documents.filter((d) => norm(d.status) === "approved").length;
-    const signed = documents.filter((d) => norm(d.status) === "signed").length;
-    return { total, pending, approved, signed };
-  }, [documents]);
-
-  const recentDocs = useMemo(() => {
-    // If you later add createdAt timestamp, sort by it.
-    // For now: keep order from Firestore (or simple title sort)
-    return [...documents].slice(0, 5);
-  }, [documents]);
+  const recentDocs = useMemo(
+    () => [
+      { name: "Investment Policy Statement (IPS)", date: "2026-01-05" },
+      { name: "Governance & Compliance Overview", date: "2026-01-03" },
+      { name: "Risk Review Summary", date: "2025-12-21" },
+    ],
+    []
+  );
 
   return (
-    <div className="page">
-      {/* Header */}
-      <div className="page-header">
-        <div className="page-header-left">
-          <h1 className="page-title">Client Dashboard</h1>
-          <p className="muted">
-            Welcome back, <span className="mono">{user?.email}</span>
-          </p>
-        </div>
+    <div className="dash-wrap">
+      {/* WELCOME STRIP */}
+      <section className="dash-hero">
+        <div className="dash-hero-inner">
+          <div>
+            <div className="dash-hello">Hello, {userEmail}</div>
+            <div className="dash-sub">Welcome to Seshego Consulting</div>
+          </div>
 
-        <div className="page-header-right">
           <button
-            className="btn-primary"
-            onClick={() => navigate("/client/documents")}
+            className="dash-help-btn"
+            type="button"
+            onClick={() => navigate("/client/qa")}
+            aria-label="Support"
+            title="Support"
           >
-            View Documents
+            Support
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="card glass stat-card">
-          <div className="stat-label">Total Documents</div>
-          <div className="stat-value">{loading ? "…" : counts.total}</div>
-          <div className="stat-sub muted">All shared documents</div>
+      {/* TILE GRID */}
+      <section className="dash-section">
+        <div className="tile-grid">
+          <Tile
+            title="My portfolio"
+            subtitle="Overview & services"
+            icon="📁"
+            onClick={() => scrollToId("portfolio")}
+          />
+          <Tile
+            title="Requests"
+            subtitle="Submissions & approvals"
+            icon="✅"
+            onClick={() => scrollToId("requests")}
+          />
+          <Tile
+            title="Documents"
+            subtitle="View & download"
+            icon="📄"
+            onClick={() => navigate("/client/documents")}
+          />
+          <Tile
+            title="Tools & support"
+            subtitle="FAQs & help"
+            icon="🧰"
+            onClick={() => navigate("/client/qa")}
+          />
+
+          {/* ✅ NEW: EMPLOYEES TILE */}
+          <Tile
+            title="Employees"
+            subtitle="Manage & view staff"
+            icon="👥"
+            onClick={() => navigate("/client/employees")}
+          />
+        </div>
+      </section>
+
+      {/* PORTFOLIO */}
+      <section className="dash-section" id="portfolio">
+        <div className="dash-row">
+          <h2 className="dash-h2">My portfolio</h2>
+          <button className="dash-link-btn" onClick={() => scrollToId("portfolio")}>
+            See more
+          </button>
         </div>
 
-        <div className="card glass stat-card">
-          <div className="stat-label">
-            <span className="icon-pill">📥</span> Pending
-          </div>
-          <div className="stat-value">{loading ? "…" : counts.pending}</div>
-          <div className="stat-sub muted">Awaiting action</div>
-        </div>
+        <div className="card-grid">
+          {portfolioItems.map((item, idx) => (
+            <div className="card" key={idx}>
+              <div className="card-head">
+                <div>
+                  <div className="card-title">{item.title}</div>
+                  <div className="card-sub">{item.subtitle}</div>
+                </div>
 
-        <div className="card glass stat-card">
-          <div className="stat-label">
-            <span className="icon-pill">✅</span> Approved
-          </div>
-          <div className="stat-value">{loading ? "…" : counts.approved}</div>
-          <div className="stat-sub muted">Ready to proceed</div>
-        </div>
+                <button
+                  className="card-arrow"
+                  type="button"
+                  onClick={() => alert("Later: open portfolio details")}
+                  aria-label="Open"
+                  title="Open"
+                >
+                  ›
+                </button>
+              </div>
 
-        <div className="card glass stat-card">
-          <div className="stat-label">
-            <span className="icon-pill">✍️</span> Signed
-          </div>
-          <div className="stat-value">{loading ? "…" : counts.signed}</div>
-          <div className="stat-sub muted">Completed</div>
-        </div>
-      </div>
-
-      {/* Two-column area */}
-      <div className="grid-2">
-        {/* Quick actions */}
-        <div className="card glass panel">
-          <div className="panel-head">
-            <div>
-              <div className="panel-title">Quick Actions</div>
-              <div className="muted">Jump to common tasks</div>
+              <div className="card-metric">
+                <div className="metric-label">{item.valueLabel}</div>
+                <div className="metric-value">{item.value}</div>
+              </div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* REQUESTS */}
+      <section className="dash-section" id="requests">
+        <h2 className="dash-h2">Requests</h2>
+
+        <div className="card soft">
+          <div className="soft-row">
+            <div>
+              <div className="soft-title">Onboarding status</div>
+              <div className="soft-sub">Pending review by admin</div>
+            </div>
+
+            <span className="pill pill-warn">Pending</span>
           </div>
 
-          <div className="panel-actions">
+          <div className="soft-actions">
             <button
               className="btn-primary"
-              onClick={() => navigate("/client/documents")}
-            >
-              View My Documents
-            </button>
-
-            <button
-              className="btn-secondary"
+              type="button"
               onClick={() => navigate("/client/onboarding")}
             >
-              Company Onboarding
+              View details
             </button>
-          </div>
-        </div>
-
-        {/* Recent documents */}
-        <div className="card glass panel">
-          <div className="panel-head">
-            <div>
-              <div className="panel-title">Recent Documents</div>
-              <div className="muted">Latest items shared with you</div>
-            </div>
 
             <button
-              className="btn-secondary btn-sm"
-              onClick={() => navigate("/client/documents")}
+              className="btn-ghost"
+              type="button"
+              onClick={() => navigate("/client/qa")}
             >
-              See all
+              Ask a question
             </button>
           </div>
-
-          {loading ? (
-            <div className="table-empty">Loading documents…</div>
-          ) : recentDocs.length === 0 ? (
-            <div className="empty-box">
-              <div className="empty-title">No documents yet</div>
-              <div className="empty-sub">
-                When documents are shared with you, they’ll appear here.
-              </div>
-              <button
-                className="btn-primary"
-                onClick={() => navigate("/client/onboarding")}
-              >
-                Start onboarding
-              </button>
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Document</th>
-                    <th>Status</th>
-                    <th className="right">File</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentDocs.map((d) => {
-                    const status = norm(d.status);
-                    return (
-                      <tr key={d.id}>
-                        <td>
-                          <div className="doc-title">{d.title || "Untitled"}</div>
-                          <div className="doc-sub muted">{d.fileName || "—"}</div>
-                        </td>
-                        <td>
-                          <span className={`status-pill status-${status}`}>
-                            {String(d.status || "pending").toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="right">
-                          {d.fileUrl ? (
-                            <a
-                              className="btn-secondary btn-sm"
-                              href={d.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              View
-                            </a>
-                          ) : (
-                            <span className="muted">No file</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
-      </div>
+      </section>
+
+      {/* RECENT DOCS */}
+      <section className="dash-section">
+        <h2 className="dash-h2">Recent documents</h2>
+
+        <div className="card">
+          <div className="list">
+            {recentDocs.map((d, i) => (
+              <div className="list-row" key={i}>
+                <div>
+                  <div className="list-title">{d.name}</div>
+                  <div className="list-sub">Updated: {d.date}</div>
+                </div>
+
+                <button
+                  className="btn-ghost"
+                  type="button"
+                  onClick={() => navigate("/client/documents")}
+                >
+                  Open
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
+}
+
+/* =========================
+   Components + helpers
+========================= */
+
+function Tile({ title, subtitle, icon, onClick }) {
+  return (
+    <button className="tile" type="button" onClick={onClick}>
+      <div className="tile-icon" aria-hidden="true">
+        {icon}
+      </div>
+      <div className="tile-title">{title}</div>
+      <div className="tile-sub">{subtitle}</div>
+    </button>
+  );
+}
+
+function scrollToId(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
